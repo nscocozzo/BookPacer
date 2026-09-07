@@ -140,9 +140,16 @@ def upsert_book(data: Dict[str, Any], book: Dict[str, Any]) -> Dict[str, Any]:
 # Fable import
 # ---------------------------------------------------------------------------
 
-_BOOK_LINE = re.compile(r"^(?P<title>\S(?:.*?\S)?) by (?P<author>\S(?:.*?\S)?)$")
 _PROGRESS_LINE = re.compile(r"^(?P<percent>\d+(?:\.\d+)?) ?%$", re.IGNORECASE)
 _PAGES_LINE = re.compile(r"^(?P<pages>[\d,]+) pages?$", re.IGNORECASE)
+
+
+def _split_book_line(line: str) -> Optional[tuple[str, str]]:
+    """Split 'Title by Author' without regex backtracking."""
+    title, sep, author = line.rpartition(" by ")
+    if not sep or not title.strip() or not author.strip():
+        return None
+    return title.strip(), author.strip()
 
 
 def parse_fable_text(text: str) -> List[Dict[str, Any]]:
@@ -200,12 +207,11 @@ def parse_fable_text(text: str) -> List[Dict[str, Any]]:
                     current["total_pages"] = int(num.group(1).replace(",", ""))
             continue
 
-        book_match = _BOOK_LINE.match(line)
-        if book_match and not _PROGRESS_LINE.match(line):
+        book_match = _split_book_line(line)
+        if book_match:
             if current.get("title"):
                 flush()
-            current["title"] = book_match.group("title").strip()
-            current["author"] = book_match.group("author").strip()
+            current["title"], current["author"] = book_match
             continue
 
         progress_match = _PROGRESS_LINE.match(line)
