@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import date
 
 from flask import Flask, flash, redirect, render_template, request, url_for
@@ -11,7 +12,8 @@ from . import pacing
 
 def create_app(data_path: str | None = None) -> Flask:
     app = Flask(__name__)
-    app.secret_key = "bookpacer-local-dev-key"  # only used for flash messages
+    # Only used to sign flash-message cookies; random per start unless set.
+    app.secret_key = os.environ.get("BOOKPACER_SECRET_KEY") or os.urandom(24)
     app.config["BOOKPACER_DATA"] = data_path
 
     def load() -> dict:
@@ -48,8 +50,12 @@ def create_app(data_path: str | None = None) -> Flask:
     def add_book():
         try:
             book = pacing.normalize_book(request.form.to_dict())
-        except (ValueError, TypeError):
-            flash("Invalid book details — check the due date (YYYY-MM-DD).", "error")
+        except (KeyError, ValueError, TypeError):
+            flash(
+                "Invalid book details — a title and a due date (YYYY-MM-DD) "
+                "are required.",
+                "error",
+            )
             return redirect(url_for("index"))
         data = load()
         pacing.upsert_book(data, book)
@@ -131,4 +137,5 @@ def create_app(data_path: str | None = None) -> Flask:
 app = create_app()
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    # Never enable the debugger here; set FLASK_DEBUG=1 explicitly if needed.
+    app.run(host="127.0.0.1", port=5000)

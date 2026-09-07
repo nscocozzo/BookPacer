@@ -113,12 +113,15 @@ def save_data(data: Dict[str, Any], path: Optional[str] = None) -> None:
 
 def normalize_book(book: Dict[str, Any]) -> Dict[str, Any]:
     """Coerce types and apply defaults to a book record."""
+    due_date = book.get("due_date")
+    if not due_date:
+        raise ValueError("A due date is required.")
     return {
         "title": str(book.get("title", "Untitled")).strip() or "Untitled",
         "author": str(book.get("author", "")).strip(),
         "total_pages": max(0, int(book.get("total_pages") or 0)),
         "current_page": max(0, int(book.get("current_page") or 0)),
-        "due_date": parse_date(str(book["due_date"])).isoformat(),
+        "due_date": parse_date(str(due_date)).isoformat(),
     }
 
 
@@ -137,9 +140,9 @@ def upsert_book(data: Dict[str, Any], book: Dict[str, Any]) -> Dict[str, Any]:
 # Fable import
 # ---------------------------------------------------------------------------
 
-_BOOK_LINE = re.compile(r"^(?P<title>.+?)\s+by\s+(?P<author>.+?)\s*$")
-_PROGRESS_LINE = re.compile(r"^(?P<percent>\d+(?:\.\d+)?)\s*%\s*$", re.IGNORECASE)
-_PAGES_LINE = re.compile(r"^(?P<pages>[\d,]+)\s+pages?\s*$", re.IGNORECASE)
+_BOOK_LINE = re.compile(r"^(?P<title>\S(?:.*?\S)?) by (?P<author>\S(?:.*?\S)?)$")
+_PROGRESS_LINE = re.compile(r"^(?P<percent>\d+(?:\.\d+)?) ?%$", re.IGNORECASE)
+_PAGES_LINE = re.compile(r"^(?P<pages>[\d,]+) pages?$", re.IGNORECASE)
 
 
 def parse_fable_text(text: str) -> List[Dict[str, Any]]:
@@ -177,11 +180,10 @@ def parse_fable_text(text: str) -> List[Dict[str, Any]]:
             flush()
             continue
 
-        key_match = re.match(
-            r"^(title|author|progress|pages)\s*:\s*(.+)$", line, re.IGNORECASE
-        )
-        if key_match:
-            key, value = key_match.group(1).lower(), key_match.group(2).strip()
+        key, sep, value = line.partition(":")
+        key = key.strip().lower()
+        if sep and key in ("title", "author", "progress", "pages") and value.strip():
+            value = value.strip()
             if key == "title":
                 if current.get("title"):
                     flush()
@@ -189,7 +191,7 @@ def parse_fable_text(text: str) -> List[Dict[str, Any]]:
             elif key == "author":
                 current["author"] = value
             elif key == "progress":
-                num = re.match(r"^(\d+(?:\.\d+)?)\s*%?$", value)
+                num = re.match(r"^(\d+(?:\.\d+)?) ?%?$", value)
                 if num:
                     current["progress"] = float(num.group(1))
             elif key == "pages":
@@ -248,7 +250,8 @@ def import_fable_text(
             None,
         )
         if existing:
-            existing["current_page"] = book["current_page"]
+            if "progress" in entry:
+                existing["current_page"] = book["current_page"]
             if total_pages:
                 existing["total_pages"] = total_pages
             if entry.get("author"):
@@ -314,17 +317,26 @@ def build_embed(book: Dict[str, Any], today: Optional[date] = None) -> Dict[str,
 def build_webhook_payload(
     books: List[Dict[str, Any]], today: Optional[date] = None
 ) -> Dict[str, Any]:
-    """Build the full Discord webhook payload for all tracked books."""
+    """Build the full Discord webhook payload for all tracked books.
+
+    Discord accepts at most 10 embeds per message, so books beyond the
+    tenth are summarised in the message content instead.
+    """
     today = today or date.today()
     if not books:
         return {
             "username": "BookPacer",
             "content": "📚 No library books are being tracked right now.",
         }
+    content = f"📚 **BookPacer daily reading reminder** — {today.isoformat()}"
+    shown, extra = books[:10], books[10:]
+    if extra:
+        titles = ", ".join(b["title"] for b in extra)
+        content += f"\nPlus {len(extra)} more book(s): {titles}"
     return {
         "username": "BookPacer",
-        "content": f"📚 **BookPacer daily reading reminder** — {today.isoformat()}",
-        "embeds": [build_embed(b, today) for b in books],
+        "content": content,
+        "embeds": [build_embed(b, today) for b in shown],
     }
 
 

@@ -60,6 +60,11 @@ The webhook URL comes from the saved settings, or from the
 
 ### Example: GitHub Actions
 
+Because `data/*.json` is gitignored, your books data does not travel with the
+repo. Store the contents of your `data/bookpacer.json` in a repository secret
+(e.g. `BOOKPACER_DATA_JSON`, in a **private** repo — it contains your webhook
+URL) and write it out in a step:
+
 ```yaml
 # .github/workflows/daily-reminder.yml
 name: Daily reading reminder
@@ -77,6 +82,12 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - name: Restore books data
+        run: |
+          mkdir -p data
+          printf '%s' "$BOOKPACER_DATA_JSON" > data/bookpacer.json
+        env:
+          BOOKPACER_DATA_JSON: ${{ secrets.BOOKPACER_DATA_JSON }}
       - run: python -m bookpacer.remind
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -93,5 +104,6 @@ jobs:
 ## Development
 
 ```bash
+pip install -r requirements-dev.txt
 python -m pytest tests/ -q
 ```

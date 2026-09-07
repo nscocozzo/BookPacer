@@ -137,6 +137,22 @@ class FableImportTests(unittest.TestCase):
         self.assertEqual(book["current_page"], 152)
         self.assertEqual(book["due_date"], "2026-09-21")
 
+    def test_import_without_progress_keeps_existing_page(self):
+        data = {
+            "books": [
+                {
+                    "title": "The Midnight Library",
+                    "author": "Matt Haig",
+                    "total_pages": 304,
+                    "current_page": 150,
+                    "due_date": "2026-09-21",
+                }
+            ],
+            "settings": {},
+        }
+        pacing.import_fable_text(data, "The Midnight Library by Matt Haig\n304 pages\n")
+        self.assertEqual(data["books"][0]["current_page"], 150)
+
 
 class StorageTests(unittest.TestCase):
     def test_save_and_load_roundtrip(self):
@@ -212,6 +228,13 @@ class DiscordTests(unittest.TestCase):
     def test_payload_no_books(self):
         payload = pacing.build_webhook_payload([], TODAY)
         self.assertIn("No library books", payload["content"])
+
+    def test_payload_caps_embeds_at_discord_limit(self):
+        books = [{**self.BOOK, "title": f"Book {i}"} for i in range(12)]
+        payload = pacing.build_webhook_payload(books, TODAY)
+        self.assertEqual(len(payload["embeds"]), 10)
+        self.assertIn("2 more book(s)", payload["content"])
+        self.assertIn("Book 11", payload["content"])
 
     def test_send_requires_webhook(self):
         with self.assertRaises(ValueError):

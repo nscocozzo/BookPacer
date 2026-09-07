@@ -160,13 +160,13 @@
       <h2>Add a book</h2>
       <form method="post" action="{{ url_for('add_book') }}">
         <div class="row">
-          <div><label>Title</label><input name="title" required></div>
-          <div><label>Author (optional)</label><input name="author"></div>
+          <div><label for="add-title">Title</label><input id="add-title" name="title" required></div>
+          <div><label for="add-author">Author (optional)</label><input id="add-author" name="author"></div>
         </div>
         <div class="row">
-          <div><label>Total pages</label><input type="number" name="total_pages" min="1" required></div>
-          <div><label>Current page</label><input type="number" name="current_page" min="0" value="0"></div>
-          <div><label>Due date</label><input type="date" name="due_date" required></div>
+          <div><label for="add-total">Total pages</label><input id="add-total" type="number" name="total_pages" min="1" required></div>
+          <div><label for="add-current">Current page</label><input id="add-current" type="number" name="current_page" min="0" value="0"></div>
+          <div><label for="add-due">Due date</label><input id="add-due" type="date" name="due_date" required></div>
         </div>
         <button type="submit">Add book</button>
       </form>
@@ -180,11 +180,12 @@
         current page and work out how many pages are left.
       </p>
       <form method="post" action="{{ url_for('import_fable') }}">
-        <textarea name="fable_text" placeholder="The Midnight Library by Matt Haig&#10;45%&#10;304 pages&#10;&#10;— or —&#10;&#10;Title: The Midnight Library&#10;Author: Matt Haig&#10;Progress: 45%&#10;Pages: 304"></textarea>
+        <label for="fable-text">Fable book details</label>
+        <textarea id="fable-text" name="fable_text" placeholder="The Midnight Library by Matt Haig&#10;45%&#10;304 pages&#10;&#10;— or —&#10;&#10;Title: The Midnight Library&#10;Author: Matt Haig&#10;Progress: 45%&#10;Pages: 304"></textarea>
         <div class="row">
           <div>
-            <label>Due date for new books</label>
-            <input type="date" name="due_date">
+            <label for="import-due">Due date for new books</label>
+            <input id="import-due" type="date" name="due_date">
             <p class="hint">Only needed the first time — re-importing later just refreshes your progress.</p>
           </div>
         </div>
@@ -199,8 +200,8 @@
         Then schedule <code>python -m bookpacer.remind</code> to run daily (see README).
       </p>
       <form method="post" action="{{ url_for('save_settings') }}">
-        <label>Discord webhook URL</label>
-        <input name="webhook_url" type="url" value="{{ webhook_url }}" placeholder="https://discord.com/api/webhooks/…">
+        <label for="webhook-url">Discord webhook URL</label>
+        <input id="webhook-url" name="webhook_url" type="url" value="{{ webhook_url }}" placeholder="https://discord.com/api/webhooks/…">
         <button type="submit">Save webhook</button>
       </form>
       <form method="post" action="{{ url_for('remind_now') }}">
