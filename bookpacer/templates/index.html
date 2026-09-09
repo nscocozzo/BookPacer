@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BookPacer</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --card: #ffffff;
+      --ink: #2b2b2b;
+      --muted: #6b6b6b;
+      --accent: #5865f2;
+      --good: #2f9e44;
+      --bad: #e03131;
+      --line: #e4e0d8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    header {
+      background: var(--accent);
+      color: #fff;
+      padding: 1.25rem 1.5rem;
+    }
+    header h1 { margin: 0; font-size: 1.4rem; }
+    header p { margin: .25rem 0 0; opacity: .9; font-size: .9rem; }
+    main {
+      max-width: 960px;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+      display: grid;
+      gap: 1.25rem;
+    }
+    section {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    h2 { margin: 0 0 .75rem; font-size: 1.1rem; }
+    label { display: block; font-size: .85rem; color: var(--muted); margin-top: .6rem; }
+    input, textarea {
+      width: 100%;
+      padding: .45rem .6rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font: inherit;
+      margin-top: .2rem;
+    }
+    textarea { min-height: 120px; resize: vertical; font-family: monospace; font-size: .85rem; }
+    button {
+      margin-top: .8rem;
+      background: var(--accent);
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      padding: .5rem 1rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.danger { background: var(--bad); }
+    button.small { margin-top: 0; padding: .3rem .7rem; font-size: .85rem; }
+    .row { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .row > div { flex: 1 1 140px; }
+    .flash { padding: .6rem .8rem; border-radius: 6px; font-size: .9rem; }
+    .flash.success { background: #e6f4ea; color: var(--good); }
+    .flash.error { background: #fdecec; color: var(--bad); }
+    table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+    th, td { text-align: left; padding: .55rem .4rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+    .pace { font-weight: 700; }
+    .pace.overdue { color: var(--bad); }
+    .pace.done { color: var(--good); }
+    progress { width: 100%; height: 8px; }
+    .muted { color: var(--muted); font-size: .85rem; }
+    form.inline { display: inline; }
+    form.inline input { width: 5.5rem; display: inline-block; }
+    .hint { font-size: .8rem; color: var(--muted); margin-top: .4rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📚 BookPacer</h1>
+    <p>Daily page goals for your library books, synced from Fable, reminded on Discord. Today is {{ today }}.</p>
+  </header>
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <section>
+      <h2>Your books</h2>
+      {% if books %}
+      <table>
+        <thead>
+          <tr>
+            <th>Book</th><th>Progress</th><th>Due</th><th>Tonight's goal</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for book in books %}
+          <tr>
+            <td>
+              <strong>{{ book.title }}</strong>
+              {% if book.author %}<br><span class="muted">{{ book.author }}</span>{% endif %}
+            </td>
+            <td style="min-width:160px">
+              {{ book.current_page }} / {{ book.total_pages }} pages
+              <progress value="{{ book.current_page }}" max="{{ book.total_pages or 1 }}"></progress>
+            </td>
+            <td>
+              {{ book.due_date }}<br>
+              <span class="muted">
+                {% if book.status.is_overdue %}
+                  overdue by {{ -book.status.days_left }} day(s)
+                {% else %}
+                  {{ book.status.days_left }} day(s) left
+                {% endif %}
+              </span>
+            </td>
+            <td>
+              {% if book.status.is_finished %}
+                <span class="pace done">Finished 🎉</span>
+              {% elif book.status.is_overdue %}
+                <span class="pace overdue">{{ book.status.pages_left }} pages left!</span>
+              {% else %}
+                <span class="pace">{{ book.status.pages_per_day }} pages</span>
+                <br><span class="muted">up to page {{ [book.total_pages, book.current_page + book.status.pages_per_day] | min }}</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap">
+              <form class="inline" method="post" action="{{ url_for('update_progress', book_id=loop.index0) }}">
+                <input type="number" name="current_page" min="0" max="{{ book.total_pages }}" value="{{ book.current_page }}" required>
+                <button class="small" type="submit">Update</button>
+              </form>
+              <form class="inline" method="post" action="{{ url_for('delete_book', book_id=loop.index0) }}">
+                <button class="small danger" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <p class="muted">No books yet. Add one below or import your current reads from Fable.</p>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>Add a book</h2>
+      <form method="post" action="{{ url_for('add_book') }}">
+        <div class="row">
+          <div><label for="add-title">Title</label><input id="add-title" name="title" required></div>
+          <div><label for="add-author">Author (optional)</label><input id="add-author" name="author"></div>
+        </div>
+        <div class="row">
+          <div><label for="add-total">Total pages</label><input id="add-total" type="number" name="total_pages" min="1" required></div>
+          <div><label for="add-current">Current page</label><input id="add-current" type="number" name="current_page" min="0" value="0"></div>
+          <div><label for="add-due">Due date</label><input id="add-due" type="date" name="due_date" required></div>
+        </div>
+        <button type="submit">Add book</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Import from Fable</h2>
+      <p class="muted">
+        Fable shows your current page and percent read for each book. Paste the details below
+        (one blank line between books) — BookPacer will convert your Fable progress into a
+        current page and work out how many pages are left.
+      </p>
+      <form method="post" action="{{ url_for('import_fable') }}">
+        <label for="fable-text">Fable book details</label>
+        <textarea id="fable-text" name="fable_text" placeholder="The Midnight Library by Matt Haig&#10;45%&#10;304 pages&#10;&#10;— or —&#10;&#10;Title: The Midnight Library&#10;Author: Matt Haig&#10;Progress: 45%&#10;Pages: 304"></textarea>
+        <div class="row">
+          <div>
+            <label for="import-due">Due date for new books</label>
+            <input id="import-due" type="date" name="due_date">
+            <p class="hint">Only needed the first time — re-importing later just refreshes your progress.</p>
+          </div>
+        </div>
+        <button type="submit">Import from Fable</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Daily Discord reminder</h2>
+      <p class="muted">
+        Create a webhook in Discord (channel → Edit Channel → Integrations → Webhooks) and paste its URL here.
+        Then schedule <code>python -m bookpacer.remind</code> to run daily (see README).
+      </p>
+      <form method="post" action="{{ url_for('save_settings') }}">
+        <label for="webhook-url">Discord webhook URL</label>
+        <input id="webhook-url" name="webhook_url" type="url" value="{{ webhook_url }}" placeholder="https://discord.com/api/webhooks/…">
+        <button type="submit">Save webhook</button>
+      </form>
+      <form method="post" action="{{ url_for('remind_now') }}">
+        <button type="submit">Send reminder now</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
