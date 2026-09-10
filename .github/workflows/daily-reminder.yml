@@ -7,10 +7,15 @@ on:
 jobs:
   remind:
     runs-on: ubuntu-latest
+    env:
+      BOOKPACER_URL: ${{ secrets.BOOKPACER_URL }}
+      BOOKPACER_PASSWORD: ${{ secrets.BOOKPACER_PASSWORD }}
     steps:
-      - name: Trigger remote reminder
+      - name: Skip when reminder secrets are not configured
+        if: ${{ env.BOOKPACER_URL == '' || env.BOOKPACER_PASSWORD == '' }}
         run: |
-          curl -fsS -u "bookpacer:$BOOKPACER_PASSWORD" -X POST "$BOOKPACER_URL/remind"
-        env:
-          BOOKPACER_URL: ${{ secrets.BOOKPACER_URL }}
-          BOOKPACER_PASSWORD: ${{ secrets.BOOKPACER_PASSWORD }}
+          echo "Skipping reminder: set both BOOKPACER_URL and BOOKPACER_PASSWORD repository secrets to enable this workflow."
+      - name: Trigger remote reminder
+        if: ${{ env.BOOKPACER_URL != '' && env.BOOKPACER_PASSWORD != '' }}
+        run: |
+          curl -fsS -u "bookpacer:$BOOKPACER_PASSWORD" -X POST "${BOOKPACER_URL%/}/remind"

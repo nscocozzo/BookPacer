@@ -159,13 +159,18 @@ on:
 jobs:
   remind:
     runs-on: ubuntu-latest
+    env:
+      BOOKPACER_URL: ${{ secrets.BOOKPACER_URL }}
+      BOOKPACER_PASSWORD: ${{ secrets.BOOKPACER_PASSWORD }}
     steps:
-      - name: Trigger remote reminder
+      - name: Skip when reminder secrets are not configured
+        if: ${{ env.BOOKPACER_URL == '' || env.BOOKPACER_PASSWORD == '' }}
         run: |
-          curl -fsS -u "bookpacer:$BOOKPACER_PASSWORD" -X POST "$BOOKPACER_URL/remind"
-        env:
-          BOOKPACER_URL: ${{ secrets.BOOKPACER_URL }}
-          BOOKPACER_PASSWORD: ${{ secrets.BOOKPACER_PASSWORD }}
+          echo "Skipping reminder: set both BOOKPACER_URL and BOOKPACER_PASSWORD repository secrets to enable this workflow."
+      - name: Trigger remote reminder
+        if: ${{ env.BOOKPACER_URL != '' && env.BOOKPACER_PASSWORD != '' }}
+        run: |
+          curl -fsS -u "bookpacer:$BOOKPACER_PASSWORD" -X POST "${BOOKPACER_URL%/}/remind"
 ```
 
 Add two repository secrets (**Settings → Secrets and variables →
@@ -177,6 +182,9 @@ Actions**):
 This only works if the deployment has `BOOKPACER_PASSWORD` set (see
 **Protecting a public deployment** above) — without it, anyone could hit
 `/remind` and spam your Discord webhook.
+
+If those two secrets are not configured yet, the workflow now exits cleanly
+with a skip message instead of failing with an invalid `curl` URL.
 
 
 ## Configuration
