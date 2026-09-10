@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+import secrets
 from datetime import date
 
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, Response, flash, redirect, render_template, request, url_for
 
 from . import pacing
 
@@ -15,6 +16,22 @@ def create_app(data_path: str | None = None) -> Flask:
     # Only used to sign flash-message cookies; random per start unless set.
     app.secret_key = os.environ.get("BOOKPACER_SECRET_KEY") or os.urandom(24)
     app.config["BOOKPACER_DATA"] = data_path
+
+    @app.before_request
+    def require_auth():
+        # Auth is opt-in: only enforced once BOOKPACER_PASSWORD is set, so
+        # local/dev use (and the test suite) needs no credentials.
+        password = os.environ.get("BOOKPACER_PASSWORD")
+        if not password:
+            return None
+        auth = request.authorization
+        if not auth or not secrets.compare_digest(auth.password, password):
+            return Response(
+                "Authentication required.",
+                401,
+                {"WWW-Authenticate": 'Basic realm="BookPacer"'},
+            )
+        return None
 
     def load() -> dict:
         return pacing.load_data(data_path)
@@ -89,27 +106,49 @@ def create_app(data_path: str | None = None) -> Flask:
             flash(f"Removed “{removed['title']}”.", "success")
         return redirect(url_for("index"))
 
-    @app.route("/import/fable", methods=["POST"])
-    def import_fable():
-        fable_text = request.form.get("fable_text", "")
-        due_date = request.form.get("due_date") or None
-        data = load()
+    @app.route("/api/progress", methods=["POST"])
+    def api_update_progress():
+        """Plain-text progress update for curl / iOS Shortcuts.
+
+        Looks a book up by title (case-insensitive) instead of list index,
+        since an index isn't a stable target for a saved Shortcut.
+        """
+        title = (request.form.get("title") or "").strip()
+        if not title:
+            return Response("title is required\n", 400, mimetype="text/plain")
         try:
-            imported = pacing.import_fable_text(data, fable_text, due_date)
-        except (ValueError, TypeError) as exc:
-            flash(f"Could not import Fable data: {exc}", "error")
-            return redirect(url_for("index"))
-        if not imported:
-            flash(
-                "No books were recognised. Paste lines like "
-                "“Title by Author”, “45%”, “304 pages” — or provide a due date.",
-                "error",
+            page = int(request.form.get("current_page", ""))
+        except ValueError:
+            return Response(
+                "current_page must be a number\n", 400, mimetype="text/plain"
             )
-            return redirect(url_for("index"))
+        data = load()
+        book = next(
+            (b for b in data["books"] if b["title"].lower() == title.lower()),
+            None,
+        )
+        if book is None:
+            return Response(
+                f"No book found matching {title!r}.\n", 404, mimetype="text/plain"
+            )
+        book["current_page"] = max(0, min(page, book["total_pages"] or page))
         save(data)
-        titles = ", ".join(b["title"] for b in imported)
-        flash(f"Imported {len(imported)} book(s) from Fable: {titles}.", "success")
-        return redirect(url_for("index"))
+        status = pacing.reading_status(
+            book["current_page"],
+            book["total_pages"],
+            pacing.parse_date(book["due_date"]),
+            date.today(),
+        )
+        if status["is_finished"]:
+            message = f"{book['title']}: finished!\n"
+        elif status["is_overdue"]:
+            message = f"{book['title']}: overdue, {status['pages_left']} pages left.\n"
+        else:
+            message = (
+                f"{book['title']}: {book['current_page']}/{book['total_pages']} pages. "
+                f"Read {status['pages_per_day']} pages/night to stay on pace.\n"
+            )
+        return Response(message, 200, mimetype="text/plain")
 
     @app.route("/settings", methods=["POST"])
     def save_settings():

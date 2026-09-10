@@ -88,27 +88,36 @@ class FlaskAppTests(unittest.TestCase):
         self.assertIn(b"Removed", response.data)
         self.assertEqual(self.load()["books"], [])
 
-    def test_import_fable_creates_book(self):
+    def test_api_update_progress(self):
+        self.add_book()
         response = self.client.post(
-            "/import/fable",
-            data={
-                "fable_text": "The Midnight Library by Matt Haig\n45%\n304 pages\n",
-                "due_date": "2026-09-21",
-            },
-            follow_redirects=True,
+            "/api/progress", data={"title": "Dune", "current_page": "150"}
         )
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Imported 1 book", response.data)
-        book = self.load()["books"][0]
-        self.assertEqual(book["current_page"], 137)
+        self.assertIn(b"Dune", response.data)
+        self.assertEqual(self.load()["books"][0]["current_page"], 150)
 
-    def test_import_fable_unparseable(self):
+    def test_api_update_progress_unknown_title(self):
         response = self.client.post(
-            "/import/fable",
-            data={"fable_text": "???\n", "due_date": "2026-09-21"},
-            follow_redirects=True,
+            "/api/progress", data={"title": "Nope", "current_page": "10"}
         )
-        self.assertIn(b"No books were recognised", response.data)
+        self.assertEqual(response.status_code, 404)
+
+    def test_api_update_progress_bad_page(self):
+        self.add_book()
+        response = self.client.post(
+            "/api/progress", data={"title": "Dune", "current_page": "abc"}
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_auth_required_when_password_set(self):
+        with mock.patch.dict(os.environ, {"BOOKPACER_PASSWORD": "secret"}):
+            app = create_app(self.data_path)
+            client = app.test_client()
+            response = client.get("/")
+            self.assertEqual(response.status_code, 401)
+            response = client.get("/", auth=("anyone", "secret"))
+            self.assertEqual(response.status_code, 200)
 
     def test_save_settings(self):
         response = self.client.post(

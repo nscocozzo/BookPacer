@@ -1,0 +1,16 @@
+name: Daily reading reminder
+on:
+  schedule:
+    - cron: "0 22 * * *"   # UTC — pick your evening
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger remote reminder
+        run: |
+          curl -fsS -u "bookpacer:$BOOKPACER_PASSWORD" -X POST "$BOOKPACER_URL/remind"
+        env:
+          BOOKPACER_URL: ${{ secrets.BOOKPACER_URL }}
+          BOOKPACER_PASSWORD: ${{ secrets.BOOKPACER_PASSWORD }}

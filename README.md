@@ -1,10 +1,9 @@
 # BookPacer
 
 A small web tool that keeps you on pace with your library books so you finish
-them before they are due. Enter your current place in each book (or paste your
-progress straight from [Fable](https://fable.co)), and BookPacer tells you how
-many pages to read each night — with an optional daily Discord webhook
-reminder.
+them before they are due. Enter your current place in each book and BookPacer
+tells you how many pages to read each night — with an optional daily Discord
+webhook reminder.
 
 ## Features
 
@@ -12,10 +11,6 @@ reminder.
   page, and due date.
 - 🎯 Automatic pacing: pages per night (rounded up) to finish exactly on the
   due date, with overdue and finished states.
-- 📥 **Fable import**: paste your current reads from Fable (`Title by Author`,
-  `45%`, `304 pages` — or the `Title: / Author: / Progress: / Pages:` format)
-  and BookPacer converts your percent-read into a current page and works out
-  how many pages are left. Re-importing later simply refreshes your progress.
 - 🔔 **Discord reminders**: one webhook message per day with tonight's page
   goal for every book.
 - 💾 Everything is stored locally in a single JSON file — no database needed.
@@ -33,17 +28,103 @@ Then open <http://127.0.0.1:5000>.
 
 ## Using BookPacer
 
-1. **Add a book** with its total page count, your current page, and the
-   library due date — or **import from Fable** by pasting your book details
-   into the import box.
-2. **Update your current page** as you read (or re-import from Fable).
+1. **Add a book** with its title, total page count, your current page, and the
+   library due date.
+2. **Update your current page** in that book's row each day as you read —
+   type the new page number and click *Update*.
 3. **Paste your Discord webhook URL** in the settings section
    (Discord channel → *Edit Channel → Integrations → Webhooks → New Webhook*).
    Use *Send reminder now* to test it.
 
+## Accessing BookPacer from your phone
+
+Running `python -m bookpacer.app` only serves BookPacer on your own computer
+(`127.0.0.1`), which isn't reachable from your phone unless it's hosted
+somewhere else. If you're fine with it being reachable on the public
+internet, host it on a small always-on service with persistent storage —
+**[PythonAnywhere](https://www.pythonanywhere.com)** works well for this:
+its free tier runs Flask apps directly (no code changes needed), keeps your
+`data/bookpacer.json` on real persistent disk, and even includes one free
+daily scheduled task, which is enough to run `python -m bookpacer.remind`.
+
+> Netlify won't work for BookPacer as-is — it's built for static sites and
+> stateless serverless functions, so `data/bookpacer.json` would be wiped on
+> every deploy/cold start. Using it would mean replacing the JSON file with an
+> external database, which is a rewrite rather than a hosting change.
+
+Since the app will be reachable by anyone who finds the URL, set a shared
+password so only you can add/update/delete books or change settings — see
+**Protecting a public deployment** below.
+
+### Updating from your phone without opening the browser
+
+Instead of the web page, you can update a book's progress with a single curl
+command — handy for an iOS Shortcut you run once a day:
+
+```bash
+curl -u bookpacer:yourpassword -X POST https://your-app-url/api/progress \
+  --data-urlencode "title=The Midnight Library" \
+  --data-urlencode "current_page=150"
+```
+
+It looks the book up by title (case-insensitive) and returns a short plain-text
+reply, e.g. `The Midnight Library: 150/304 pages. Read 8 pages/night to stay
+on pace.` — good for an iOS Shortcut's *Get Contents of URL* action (`POST`,
+request body = form fields `title` / `current_page`, header
+`Authorization: Basic <base64 of bookpacer:yourpassword>`) followed by
+*Show Result*.
+
+## Protecting a public deployment
+
+Set `BOOKPACER_PASSWORD` to require HTTP Basic Auth on every request (any
+username, that password). It's opt-in — leave it unset for local use and
+the app stays open, exactly as before:
+
+```bash
+BOOKPACER_PASSWORD=yourpassword python -m bookpacer.app
+```
+
+## Fable automation (scrape vs push)
+
+Short answer:
+
+- **Push to Fable from BookPacer:** not currently supported here.
+- **Auto-import from Fable:** possible, but usually requires browser automation
+  (scraping) unless Fable provides an official API for your account/workflow.
+
+BookPacer now includes a CLI import entrypoint so you can automate the final
+step after collecting text from Fable:
+
+```bash
+python -m bookpacer.fable_sync --from-file fable.txt --due-date 2026-09-30
+```
+
+or via standard input:
+
+```bash
+type fable.txt | python -m bookpacer.fable_sync --stdin --due-date 2026-09-30
+```
+
+### Recommended workflow
+
+1. Use your preferred tool to collect your current reads from Fable into text
+   (`Title by Author`, `45%`, `304 pages` — or the
+   `Title: / Author: / Progress: / Pages:` format).
+2. Run `python -m bookpacer.fable_sync ...` to update BookPacer.
+3. Schedule that command (Windows Task Scheduler, cron, GitHub Actions, etc.).
+
+### Notes on scraping
+
+- Scraping can break whenever Fable changes page structure.
+- Automated login/scraping may be restricted by Fable terms or bot protections.
+- If Fable offers an official export/API path for your plan, prefer that over
+  scraping.
+
 ## Daily Discord reminders
 
-Run the reminder once a day with any scheduler:
+There are two ways to trigger it, depending on where BookPacer runs.
+
+### Running locally or on a host you can schedule directly
 
 ```bash
 python -m bookpacer.remind
@@ -52,18 +133,20 @@ python -m bookpacer.remind
 The webhook URL comes from the saved settings, or from the
 `DISCORD_WEBHOOK_URL` environment variable (handy for CI-based scheduling).
 
-### Example: cron (Linux/macOS)
+#### Example: cron (Linux/macOS)
 
 ```cron
 0 18 * * *  cd /path/to/BookPacer && /usr/bin/python3 -m bookpacer.remind
 ```
 
-### Example: GitHub Actions
+### Hosted remotely without a scheduler (e.g. PythonAnywhere's free tier)
 
-Because `data/*.json` is gitignored, your books data does not travel with the
-repo. Store the contents of your `data/bookpacer.json` in a repository secret
-(e.g. `BOOKPACER_DATA_JSON`, in a **private** repo — it contains your webhook
-URL) and write it out in a step:
+PythonAnywhere's free tier only gives you one *free* scheduled task, and
+paid plans are needed for more — but you don't need one at all. The app
+already exposes `POST /remind`, which sends tonight's reminder using
+whatever data is currently live on the server. Have GitHub Actions call
+that endpoint on a schedule instead of running `bookpacer.remind` itself,
+so there's no need to duplicate or sync your books data into a secret:
 
 ```yaml
 # .github/workflows/daily-reminder.yml
@@ -77,28 +160,31 @@ jobs:
   remind:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - name: Restore books data
+      - name: Trigger remote reminder
         run: |
-          mkdir -p data
-          printf '%s' "$BOOKPACER_DATA_JSON" > data/bookpacer.json
+          curl -fsS -u "bookpacer:$BOOKPACER_PASSWORD" -X POST "$BOOKPACER_URL/remind"
         env:
-          BOOKPACER_DATA_JSON: ${{ secrets.BOOKPACER_DATA_JSON }}
-      - run: python -m bookpacer.remind
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          BOOKPACER_DATA: data/bookpacer.json
+          BOOKPACER_URL: ${{ secrets.BOOKPACER_URL }}
+          BOOKPACER_PASSWORD: ${{ secrets.BOOKPACER_PASSWORD }}
 ```
+
+Add two repository secrets (**Settings → Secrets and variables →
+Actions**):
+
+- `BOOKPACER_URL` — e.g. `https://yourusername.pythonanywhere.com`
+- `BOOKPACER_PASSWORD` — the same value as your app's `BOOKPACER_PASSWORD`
+
+This only works if the deployment has `BOOKPACER_PASSWORD` set (see
+**Protecting a public deployment** above) — without it, anyone could hit
+`/remind` and spam your Discord webhook.
+
 
 ## Configuration
 
 | Environment variable  | Purpose                                             |
 | --------------------- | --------------------------------------------------- |
 | `BOOKPACER_DATA`      | Path to the JSON data file (default `data/bookpacer.json`) |
+| `BOOKPACER_PASSWORD`  | If set, requires HTTP Basic Auth (any username) on every request |
 | `DISCORD_WEBHOOK_URL` | Webhook URL override for `python -m bookpacer.remind`      |
 
 ## Development

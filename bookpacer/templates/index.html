@@ -87,7 +87,7 @@
 <body>
   <header>
     <h1>📚 BookPacer</h1>
-    <p>Daily page goals for your library books, synced from Fable, reminded on Discord. Today is {{ today }}.</p>
+    <p>Daily page goals for your library books, reminded on Discord. Today is {{ today }}.</p>
   </header>
   <main>
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -152,7 +152,7 @@
         </tbody>
       </table>
       {% else %}
-        <p class="muted">No books yet. Add one below or import your current reads from Fable.</p>
+        <p class="muted">No books yet. Add one below.</p>
       {% endif %}
     </section>
 
@@ -169,27 +169,6 @@
           <div><label for="add-due">Due date</label><input id="add-due" type="date" name="due_date" required></div>
         </div>
         <button type="submit">Add book</button>
-      </form>
-    </section>
-
-    <section>
-      <h2>Import from Fable</h2>
-      <p class="muted">
-        Fable shows your current page and percent read for each book. Paste the details below
-        (one blank line between books) — BookPacer will convert your Fable progress into a
-        current page and work out how many pages are left.
-      </p>
-      <form method="post" action="{{ url_for('import_fable') }}">
-        <label for="fable-text">Fable book details</label>
-        <textarea id="fable-text" name="fable_text" placeholder="The Midnight Library by Matt Haig&#10;45%&#10;304 pages&#10;&#10;— or —&#10;&#10;Title: The Midnight Library&#10;Author: Matt Haig&#10;Progress: 45%&#10;Pages: 304"></textarea>
-        <div class="row">
-          <div>
-            <label for="import-due">Due date for new books</label>
-            <input id="import-due" type="date" name="due_date">
-            <p class="hint">Only needed the first time — re-importing later just refreshes your progress.</p>
-          </div>
-        </div>
-        <button type="submit">Import from Fable</button>
       </form>
     </section>
 
