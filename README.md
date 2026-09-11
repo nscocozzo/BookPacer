@@ -84,42 +84,6 @@ the app stays open, exactly as before:
 BOOKPACER_PASSWORD=yourpassword python -m bookpacer.app
 ```
 
-## Fable automation (scrape vs push)
-
-Short answer:
-
-- **Push to Fable from BookPacer:** not currently supported here.
-- **Auto-import from Fable:** possible, but usually requires browser automation
-  (scraping) unless Fable provides an official API for your account/workflow.
-
-BookPacer now includes a CLI import entrypoint so you can automate the final
-step after collecting text from Fable:
-
-```bash
-python -m bookpacer.fable_sync --from-file fable.txt --due-date 2026-09-30
-```
-
-or via standard input:
-
-```bash
-type fable.txt | python -m bookpacer.fable_sync --stdin --due-date 2026-09-30
-```
-
-### Recommended workflow
-
-1. Use your preferred tool to collect your current reads from Fable into text
-   (`Title by Author`, `45%`, `304 pages` — or the
-   `Title: / Author: / Progress: / Pages:` format).
-2. Run `python -m bookpacer.fable_sync ...` to update BookPacer.
-3. Schedule that command (Windows Task Scheduler, cron, GitHub Actions, etc.).
-
-### Notes on scraping
-
-- Scraping can break whenever Fable changes page structure.
-- Automated login/scraping may be restricted by Fable terms or bot protections.
-- If Fable offers an official export/API path for your plan, prefer that over
-  scraping.
-
 ## Daily Discord reminders
 
 There are two ways to trigger it, depending on where BookPacer runs.
@@ -153,7 +117,7 @@ so there's no need to duplicate or sync your books data into a secret:
 name: Daily reading reminder
 on:
   schedule:
-    - cron: "0 22 * * *"   # UTC — pick your evening
+    - cron: "30 2 * * *"   # UTC — pick your evening
   workflow_dispatch:
 
 jobs:
