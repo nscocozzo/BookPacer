@@ -359,7 +359,11 @@ def send_discord_reminder(
     request = urllib.request.Request(
         webhook_url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        # Discord/Cloudflare returns 403 for the default urllib User-Agent.
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "BookPacer (https://github.com/nscocozzo/BookPacer)",
+        },
         method="POST",
     )
     try:
