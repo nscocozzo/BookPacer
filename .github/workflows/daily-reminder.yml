@@ -1,7 +1,8 @@
 name: Daily reading reminder
 on:
   schedule:
-    - cron: "0 22 * * *"   # UTC — pick your evening
+    # ~9pm Central (off by an hour during CST, Nov-Mar, since this is fixed UTC)
+    - cron: "30 2 * * *"
   workflow_dispatch:
 
 jobs:
