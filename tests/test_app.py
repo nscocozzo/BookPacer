@@ -158,6 +158,22 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(len(data["books"]), 0)
         self.assertEqual(len(data["to_be_continued"]), 1)
 
+    def test_resume_paused_book_rejects_active_title_conflict(self):
+        self.add_book(current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(current_page="50")
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "2026-10-11"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"already exists", response.data)
+        data = self.load()
+        self.assertEqual(len(data["books"]), 1)
+        self.assertEqual(data["books"][0]["current_page"], 50)
+        self.assertEqual(len(data["to_be_continued"]), 1)
+
     def test_drop_paused_book(self):
         self.add_book()
         self.client.post("/books/0/pause", follow_redirects=True)

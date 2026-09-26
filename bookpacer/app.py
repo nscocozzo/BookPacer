@@ -158,6 +158,16 @@ def create_app(data_path: str | None = None) -> Flask:
             flash("A valid due date (YYYY-MM-DD) is required to resume.", "error")
             return redirect(url_for("index"))
         paused = data["to_be_continued"][item_id]
+        title_conflict = next(
+            (b for b in data["books"] if b["title"].lower() == paused["title"].lower()),
+            None,
+        )
+        if title_conflict:
+            flash(
+                "An active book with this title already exists. Remove it before resuming.",
+                "error",
+            )
+            return redirect(url_for("index"))
         pacing.upsert_book(
             data,
             {
