@@ -174,6 +174,21 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(data["books"][0]["current_page"], 50)
         self.assertEqual(len(data["to_be_continued"]), 1)
 
+    def test_resume_paused_book_allows_same_title_different_author(self):
+        self.add_book(current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(author="Another Author", current_page="50")
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "2026-10-11"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Resumed", response.data)
+        data = self.load()
+        self.assertEqual(len(data["books"]), 2)
+        self.assertEqual(len(data["to_be_continued"]), 0)
+
     def test_drop_paused_book(self):
         self.add_book()
         self.client.post("/books/0/pause", follow_redirects=True)

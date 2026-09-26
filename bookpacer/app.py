@@ -159,25 +159,30 @@ def create_app(data_path: str | None = None) -> Flask:
             return redirect(url_for("index"))
         paused = data["to_be_continued"][item_id]
         title_conflict = next(
-            (b for b in data["books"] if b["title"].lower() == paused["title"].lower()),
+            (
+                b
+                for b in data["books"]
+                if b["title"].lower() == paused["title"].lower()
+                and b.get("author", "").lower() == paused.get("author", "").lower()
+            ),
             None,
         )
         if title_conflict:
             flash(
-                "An active book with this title already exists. Remove it before resuming.",
+                "An active copy of this book already exists. Remove it before resuming.",
                 "error",
             )
             return redirect(url_for("index"))
-        pacing.upsert_book(
-            data,
+        resumed = pacing.normalize_book(
             {
                 "title": paused["title"],
                 "author": paused.get("author", ""),
                 "total_pages": paused.get("total_pages", 0),
                 "current_page": paused.get("pages_read", 0),
                 "due_date": due_date,
-            },
+            }
         )
+        data["books"].append(resumed)
         data["to_be_continued"].pop(item_id)
         save(data)
         flash(f"Resumed “{paused['title']}”.", "success")
