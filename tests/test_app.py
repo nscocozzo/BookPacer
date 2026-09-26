@@ -102,6 +102,23 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(paused["pages_read"], 100)
         self.assertEqual(paused["total_pages"], 896)
 
+    def test_pause_book_replaces_existing_paused_match(self):
+        self.add_book(current_page="100")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(current_page="200")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        paused = self.load()["to_be_continued"]
+        self.assertEqual(len(paused), 1)
+        self.assertEqual(paused[0]["pages_read"], 200)
+
+    def test_pause_book_keeps_separate_when_author_differs(self):
+        self.add_book(current_page="100")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(author="Another Author", current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        paused = self.load()["to_be_continued"]
+        self.assertEqual(len(paused), 2)
+
     def test_pause_finished_book_is_rejected(self):
         self.add_book(current_page="896")
         response = self.client.post("/books/0/pause", follow_redirects=True)

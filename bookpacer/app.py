@@ -131,7 +131,10 @@ def create_app(data_path: str | None = None) -> Flask:
         }
         replaced = False
         for i, existing in enumerate(data["to_be_continued"]):
-            if existing["title"].lower() == paused["title"].lower():
+            if (
+                existing["title"].lower() == paused["title"].lower()
+                and existing.get("author", "").lower() == paused.get("author", "").lower()
+            ):
                 data["to_be_continued"][i] = paused
                 replaced = True
                 break
