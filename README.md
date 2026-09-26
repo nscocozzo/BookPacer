@@ -9,6 +9,8 @@ webhook reminder.
 
 - 📖 Track any number of library books: title, author, total pages, current
   page, and due date.
+- ⏸️ Pause unfinished books into a **To Be Continued** list with saved progress,
+  then resume later with a new due date or drop them.
 - 🎯 Automatic pacing: pages per night (rounded up) to finish exactly on the
   due date, with overdue and finished states.
 - 🔔 **Discord reminders**: one webhook message per day with tonight's page
@@ -32,7 +34,11 @@ Then open <http://127.0.0.1:5000>.
    library due date.
 2. **Update your current page** in that book's row each day as you read —
    type the new page number and click *Update*.
-3. **Paste your Discord webhook URL** in the settings section
+3. **Pause a book** when you need to stop early — it moves to *To Be Continued*
+   with title, author, pages read, and total pages saved.
+4. **Resume later** by setting a new due date, or drop it from *To Be Continued*
+   if you're done with it.
+5. **Paste your Discord webhook URL** in the settings section
    (Discord channel → *Edit Channel → Integrations → Webhooks → New Webhook*).
    Use *Send reminder now* to test it.
 

@@ -170,6 +170,7 @@ class StorageTests(unittest.TestCase):
                         "due_date": "2026-09-30",
                     }
                 ],
+                "to_be_continued": [],
                 "settings": {"webhook_url": "https://example.com/hook"},
             }
             pacing.save_data(data, path)
@@ -178,7 +179,7 @@ class StorageTests(unittest.TestCase):
 
     def test_load_missing_file_gives_defaults(self):
         loaded = pacing.load_data("/nonexistent/path.json")
-        self.assertEqual(loaded, {"books": [], "settings": {}})
+        self.assertEqual(loaded, {"books": [], "to_be_continued": [], "settings": {}})
 
     def test_upsert_replaces_by_title_case_insensitive(self):
         data = {"books": [], "settings": {}}

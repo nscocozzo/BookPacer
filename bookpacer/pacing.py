@@ -97,6 +97,7 @@ def load_data(path: Optional[str] = None) -> Dict[str, Any]:
     else:
         data = {}
     data.setdefault("books", [])
+    data.setdefault("to_be_continued", [])
     data.setdefault("settings", {})
     return data
 
