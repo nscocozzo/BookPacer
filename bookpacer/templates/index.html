@@ -82,6 +82,17 @@
     form.inline { display: inline; }
     form.inline input { width: 5.5rem; display: inline-block; }
     .hint { font-size: .8rem; color: var(--muted); margin-top: .4rem; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 <body>
@@ -146,6 +157,11 @@
               <form class="inline" method="post" action="{{ url_for('delete_book', book_id=loop.index0) }}">
                 <button class="small danger" type="submit">Remove</button>
               </form>
+              {% if not book.status.is_finished %}
+              <form class="inline" method="post" action="{{ url_for('pause_book', book_id=loop.index0) }}">
+                <button class="small" type="submit">Pause</button>
+              </form>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -153,6 +169,44 @@
       </table>
       {% else %}
         <p class="muted">No books yet. Add one below.</p>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>To Be Continued</h2>
+      {% if to_be_continued %}
+      <table>
+        <thead>
+          <tr>
+            <th>Book</th><th>Saved progress</th><th>Resume</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for book in to_be_continued %}
+          <tr>
+            <td>
+              <strong>{{ book.title }}</strong>
+              {% if book.author %}<br><span class="muted">{{ book.author }}</span>{% endif %}
+            </td>
+            <td>{{ book.pages_read }} / {{ book.total_pages }} pages</td>
+            <td>
+              <form class="inline" method="post" action="{{ url_for('resume_book', item_id=loop.index0) }}">
+                <label class="sr-only" for="resume-due-{{ loop.index0 }}">New due date for {{ book.title }}</label>
+                <input id="resume-due-{{ loop.index0 }}" type="date" name="due_date" required>
+                <button class="small" type="submit">Resume</button>
+              </form>
+            </td>
+            <td style="white-space:nowrap">
+              <form class="inline" method="post" action="{{ url_for('drop_paused_book', item_id=loop.index0) }}">
+                <button class="small danger" type="submit">Drop</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="muted">No paused books.</p>
       {% endif %}
     </section>
 

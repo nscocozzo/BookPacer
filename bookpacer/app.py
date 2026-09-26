@@ -59,6 +59,7 @@ def create_app(data_path: str | None = None) -> Flask:
         return render_template(
             "index.html",
             books=books,
+            to_be_continued=data["to_be_continued"],
             webhook_url=data["settings"].get("webhook_url", ""),
             today=today.isoformat(),
         )
@@ -104,6 +105,111 @@ def create_app(data_path: str | None = None) -> Flask:
             removed = data["books"].pop(book_id)
             save(data)
             flash(f"Removed “{removed['title']}”.", "success")
+        return redirect(url_for("index"))
+
+    @app.route("/books/<int:book_id>/pause", methods=["POST"])
+    def pause_book(book_id: int):
+        data = load()
+        if not 0 <= book_id < len(data["books"]):
+            flash("Book not found.", "error")
+            return redirect(url_for("index"))
+        book = data["books"][book_id]
+        status = pacing.reading_status(
+            book["current_page"],
+            book["total_pages"],
+            pacing.parse_date(book["due_date"]),
+            date.today(),
+        )
+        if status["is_finished"]:
+            flash("Finished books cannot be paused.", "error")
+            return redirect(url_for("index"))
+        paused = {
+            "title": book["title"],
+            "author": book.get("author", ""),
+            "pages_read": book["current_page"],
+            "total_pages": book["total_pages"],
+            "book": dict(book),
+        }
+        replaced = False
+        for i, existing in enumerate(data["to_be_continued"]):
+            if (
+                existing["title"].lower() == paused["title"].lower()
+                and existing.get("author", "").lower() == paused.get("author", "").lower()
+            ):
+                data["to_be_continued"][i] = paused
+                replaced = True
+                break
+        if not replaced:
+            data["to_be_continued"].append(paused)
+        data["books"].pop(book_id)
+        save(data)
+        flash(f"Paused “{book['title']}” in To Be Continued.", "success")
+        return redirect(url_for("index"))
+
+    @app.route("/continued/<int:item_id>/resume", methods=["POST"])
+    def resume_book(item_id: int):
+        data = load()
+        if not 0 <= item_id < len(data["to_be_continued"]):
+            flash("Paused book not found.", "error")
+            return redirect(url_for("index"))
+        due_date = (request.form.get("due_date") or "").strip()
+        try:
+            due_date = pacing.parse_date(due_date).isoformat()
+        except ValueError:
+            flash("A valid due date (YYYY-MM-DD) is required to resume.", "error")
+            return redirect(url_for("index"))
+        paused = data["to_be_continued"][item_id]
+        title_conflict = next(
+            (
+                b
+                for b in data["books"]
+                if b["title"].lower() == paused["title"].lower()
+                and b.get("author", "").lower() == paused.get("author", "").lower()
+            ),
+            None,
+        )
+        if title_conflict:
+            flash(
+                "An active copy of this book already exists. Remove it before resuming.",
+                "error",
+            )
+            return redirect(url_for("index"))
+        resumed_input = {
+            "title": paused["title"],
+            "author": paused.get("author", ""),
+            "current_page": paused.get("pages_read", 0),
+            "total_pages": paused.get("total_pages", 0),
+            "due_date": due_date,
+        }
+        saved_payload = paused.get("book")
+        if isinstance(saved_payload, dict):
+            for key, value in saved_payload.items():
+                resumed_input.setdefault(key, value)
+        resumed_input["title"] = paused["title"]
+        resumed_input["author"] = paused.get("author", "")
+        resumed_input["current_page"] = paused.get("pages_read", 0)
+        resumed_input["total_pages"] = paused.get("total_pages", 0)
+        resumed_input["due_date"] = due_date
+        try:
+            resumed = pacing.normalize_book(resumed_input)
+        except (KeyError, TypeError, ValueError):
+            flash("Could not resume this paused book. Please pause it again.", "error")
+            return redirect(url_for("index"))
+        data["to_be_continued"].pop(item_id)
+        data["books"].append(resumed)
+        save(data)
+        flash(f"Resumed “{paused['title']}”.", "success")
+        return redirect(url_for("index"))
+
+    @app.route("/continued/<int:item_id>/drop", methods=["POST"])
+    def drop_paused_book(item_id: int):
+        data = load()
+        if 0 <= item_id < len(data["to_be_continued"]):
+            removed = data["to_be_continued"].pop(item_id)
+            save(data)
+            flash(f"Dropped “{removed['title']}” from To Be Continued.", "success")
+        else:
+            flash("Paused book not found.", "error")
         return redirect(url_for("index"))
 
     @app.route("/api/progress", methods=["POST"])

@@ -88,6 +88,140 @@ class FlaskAppTests(unittest.TestCase):
         self.assertIn(b"Removed", response.data)
         self.assertEqual(self.load()["books"], [])
 
+    def test_pause_book_moves_to_to_be_continued(self):
+        self.add_book()
+        response = self.client.post("/books/0/pause", follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Paused", response.data)
+        data = self.load()
+        self.assertEqual(data["books"], [])
+        self.assertEqual(len(data["to_be_continued"]), 1)
+        paused = data["to_be_continued"][0]
+        self.assertEqual(paused["title"], "Dune")
+        self.assertEqual(paused["author"], "Frank Herbert")
+        self.assertEqual(paused["pages_read"], 100)
+        self.assertEqual(paused["total_pages"], 896)
+
+    def test_pause_book_replaces_existing_paused_match(self):
+        self.add_book(current_page="100")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(current_page="200")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        paused = self.load()["to_be_continued"]
+        self.assertEqual(len(paused), 1)
+        self.assertEqual(paused[0]["pages_read"], 200)
+
+    def test_pause_book_keeps_separate_when_author_differs(self):
+        self.add_book(current_page="100")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(author="Another Author", current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        paused = self.load()["to_be_continued"]
+        self.assertEqual(len(paused), 2)
+
+    def test_pause_finished_book_is_rejected(self):
+        self.add_book(current_page="896")
+        response = self.client.post("/books/0/pause", follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"cannot be paused", response.data)
+        data = self.load()
+        self.assertEqual(len(data["books"]), 1)
+        self.assertEqual(data["to_be_continued"], [])
+
+    def test_resume_paused_book_with_new_due_date(self):
+        self.add_book(current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        paused = self.load()["to_be_continued"][0]
+        self.assertEqual(paused["book"]["due_date"], "2026-09-20")
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "2026-10-11"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Resumed", response.data)
+        data = self.load()
+        self.assertEqual(data["to_be_continued"], [])
+        self.assertEqual(len(data["books"]), 1)
+        self.assertEqual(data["books"][0]["current_page"], 220)
+        self.assertEqual(data["books"][0]["due_date"], "2026-10-11")
+
+    def test_resume_paused_book_requires_valid_due_date(self):
+        self.add_book()
+        self.client.post("/books/0/pause", follow_redirects=True)
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "next week"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"valid due date", response.data)
+        data = self.load()
+        self.assertEqual(len(data["books"]), 0)
+        self.assertEqual(len(data["to_be_continued"]), 1)
+
+    def test_resume_paused_book_rejects_active_title_conflict(self):
+        self.add_book(current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(current_page="50")
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "2026-10-11"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"already exists", response.data)
+        data = self.load()
+        self.assertEqual(len(data["books"]), 1)
+        self.assertEqual(data["books"][0]["current_page"], 50)
+        self.assertEqual(len(data["to_be_continued"]), 1)
+
+    def test_resume_paused_book_allows_same_title_different_author(self):
+        self.add_book(current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        self.add_book(author="Another Author", current_page="50")
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "2026-10-11"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Resumed", response.data)
+        data = self.load()
+        self.assertEqual(len(data["books"]), 2)
+        self.assertEqual(len(data["to_be_continued"]), 0)
+
+    def test_resume_paused_book_supports_legacy_paused_entry_without_payload(self):
+        self.add_book(current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        data = self.load()
+        data["to_be_continued"][0].pop("book", None)
+        with open(self.data_path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "2026-10-11"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Resumed", response.data)
+        resumed = self.load()["books"][0]
+        self.assertEqual(resumed["current_page"], 220)
+        self.assertEqual(resumed["due_date"], "2026-10-11")
+
+    def test_drop_paused_book(self):
+        self.add_book()
+        self.client.post("/books/0/pause", follow_redirects=True)
+        response = self.client.post("/continued/0/drop", follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Dropped", response.data)
+        self.assertEqual(self.load()["to_be_continued"], [])
+
+    def test_drop_paused_book_invalid_id(self):
+        response = self.client.post("/continued/99/drop", follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Paused book not found", response.data)
+
     def test_api_update_progress(self):
         self.add_book()
         response = self.client.post(
