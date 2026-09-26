@@ -182,8 +182,8 @@ def create_app(data_path: str | None = None) -> Flask:
                 "due_date": due_date,
             }
         )
-        data["books"].append(resumed)
         data["to_be_continued"].pop(item_id)
+        data["books"].append(resumed)
         save(data)
         flash(f"Resumed “{paused['title']}”.", "success")
         return redirect(url_for("index"))
