@@ -131,6 +131,8 @@ class FlaskAppTests(unittest.TestCase):
     def test_resume_paused_book_with_new_due_date(self):
         self.add_book(current_page="220")
         self.client.post("/books/0/pause", follow_redirects=True)
+        paused = self.load()["to_be_continued"][0]
+        self.assertEqual(paused["book"]["due_date"], "2026-09-20")
         response = self.client.post(
             "/continued/0/resume",
             data={"due_date": "2026-10-11"},

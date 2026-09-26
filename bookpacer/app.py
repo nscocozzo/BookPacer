@@ -128,6 +128,7 @@ def create_app(data_path: str | None = None) -> Flask:
             "author": book.get("author", ""),
             "pages_read": book["current_page"],
             "total_pages": book["total_pages"],
+            "book": dict(book),
         }
         replaced = False
         for i, existing in enumerate(data["to_be_continued"]):
@@ -173,15 +174,17 @@ def create_app(data_path: str | None = None) -> Flask:
                 "error",
             )
             return redirect(url_for("index"))
-        resumed = pacing.normalize_book(
-            {
-                "title": paused["title"],
-                "author": paused.get("author", ""),
-                "total_pages": paused.get("total_pages", 0),
-                "current_page": paused.get("pages_read", 0),
-                "due_date": due_date,
-            }
+        resumed_input = dict(paused.get("book") or {})
+        resumed_input["title"] = paused["title"]
+        resumed_input["author"] = paused.get("author", "")
+        resumed_input["current_page"] = paused.get(
+            "pages_read", resumed_input.get("current_page", 0)
         )
+        resumed_input["total_pages"] = paused.get(
+            "total_pages", resumed_input.get("total_pages", 0)
+        )
+        resumed_input["due_date"] = due_date
+        resumed = pacing.normalize_book(resumed_input)
         data["to_be_continued"].pop(item_id)
         data["books"].append(resumed)
         save(data)
