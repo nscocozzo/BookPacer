@@ -149,6 +149,11 @@ class FlaskAppTests(unittest.TestCase):
         self.assertIn(b"Dropped", response.data)
         self.assertEqual(self.load()["to_be_continued"], [])
 
+    def test_drop_paused_book_invalid_id(self):
+        response = self.client.post("/continued/99/drop", follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Paused book not found", response.data)
+
     def test_api_update_progress(self):
         self.add_book()
         response = self.client.post(

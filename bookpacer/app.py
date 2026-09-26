@@ -177,6 +177,8 @@ def create_app(data_path: str | None = None) -> Flask:
             removed = data["to_be_continued"].pop(item_id)
             save(data)
             flash(f"Dropped “{removed['title']}” from To Be Continued.", "success")
+        else:
+            flash("Paused book not found.", "error")
         return redirect(url_for("index"))
 
     @app.route("/api/progress", methods=["POST"])
