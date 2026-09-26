@@ -174,17 +174,27 @@ def create_app(data_path: str | None = None) -> Flask:
                 "error",
             )
             return redirect(url_for("index"))
-        resumed_input = dict(paused.get("book") or {})
+        resumed_input = {
+            "title": paused["title"],
+            "author": paused.get("author", ""),
+            "current_page": paused.get("pages_read", 0),
+            "total_pages": paused.get("total_pages", 0),
+            "due_date": due_date,
+        }
+        saved_payload = paused.get("book")
+        if isinstance(saved_payload, dict):
+            for key, value in saved_payload.items():
+                resumed_input.setdefault(key, value)
         resumed_input["title"] = paused["title"]
         resumed_input["author"] = paused.get("author", "")
-        resumed_input["current_page"] = paused.get(
-            "pages_read", resumed_input.get("current_page", 0)
-        )
-        resumed_input["total_pages"] = paused.get(
-            "total_pages", resumed_input.get("total_pages", 0)
-        )
+        resumed_input["current_page"] = paused.get("pages_read", 0)
+        resumed_input["total_pages"] = paused.get("total_pages", 0)
         resumed_input["due_date"] = due_date
-        resumed = pacing.normalize_book(resumed_input)
+        try:
+            resumed = pacing.normalize_book(resumed_input)
+        except (KeyError, TypeError, ValueError):
+            flash("Could not resume this paused book. Please pause it again.", "error")
+            return redirect(url_for("index"))
         data["to_be_continued"].pop(item_id)
         data["books"].append(resumed)
         save(data)

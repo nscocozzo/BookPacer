@@ -191,6 +191,24 @@ class FlaskAppTests(unittest.TestCase):
         self.assertEqual(len(data["books"]), 2)
         self.assertEqual(len(data["to_be_continued"]), 0)
 
+    def test_resume_paused_book_supports_legacy_paused_entry_without_payload(self):
+        self.add_book(current_page="220")
+        self.client.post("/books/0/pause", follow_redirects=True)
+        data = self.load()
+        data["to_be_continued"][0].pop("book", None)
+        with open(self.data_path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        response = self.client.post(
+            "/continued/0/resume",
+            data={"due_date": "2026-10-11"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Resumed", response.data)
+        resumed = self.load()["books"][0]
+        self.assertEqual(resumed["current_page"], 220)
+        self.assertEqual(resumed["due_date"], "2026-10-11")
+
     def test_drop_paused_book(self):
         self.add_book()
         self.client.post("/books/0/pause", follow_redirects=True)
